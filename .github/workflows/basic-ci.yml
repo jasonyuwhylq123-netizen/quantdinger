@@ -186,3 +186,5 @@ jobs:
 
       - name: Check tracked text encoding
         run: python scripts/check_mojibake.py
+
+# Actions smoke trigger: 2026-09-06

@@ -1,4 +1,4 @@
-name: Jason US Swing 500 Validation
+name: Jason US Swing 500 Real PIT Validation
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     paths:
       - 'backend_api_python/scripts/jason_us_swing_500.py'
       - 'backend_api_python/scripts/validate_jason_500.py'
+      - 'data/jason_500_pit/**'
       - '.github/workflows/jason-500-validation.yml'
 
 permissions:
@@ -15,27 +16,36 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - name: Install validation stack
-        run: python -m pip install --disable-pip-version-check 'numpy>=1.26,<3' 'pandas>=2.2,<3' 'plotly>=5.24,<6' 'vectorbt>=0.28,<0.29'
+      - name: Install real-data validation stack
+        run: python -m pip install --disable-pip-version-check 'numpy>=1.26,<3' 'pandas>=2.2,<3' 'pyarrow>=17,<22' 'plotly>=5.24,<6' 'vectorbt>=0.28,<0.29'
       - name: Compile
         run: python -m py_compile backend_api_python/scripts/jason_us_swing_500.py backend_api_python/scripts/validate_jason_500.py
-      - name: Run cross-engine / walk-forward / Monte Carlo validation
+      - name: Run real PIT cross-engine / walk-forward / Monte Carlo validation
         env:
           PYTHONPATH: backend_api_python/scripts
         run: python backend_api_python/scripts/validate_jason_500.py
-      - name: Verify required outputs
-        run: test -s QUANTDINGER_JASON_500_RESULT.json && test -s QUANTDINGER_JASON_500_REPORT.md
-      - name: Commit reproducible validation outputs
+      - name: Verify fail-closed outputs
+        run: |
+          test -s QUANTDINGER_JASON_500_RESULT.json
+          test -s QUANTDINGER_JASON_500_REPORT.md
+          python - <<'PY'
+          import json
+          x=json.load(open('QUANTDINGER_JASON_500_RESULT.json'))
+          assert x['synthetic_allowed'] is False
+          assert x['broker_connected'] is False and x['live_orders'] is False
+          if x['qualification'] != 'PASS': assert x['trade_decision']=='NO_TRADE' and x['today']=='今天不交易'
+          PY
+      - name: Commit validation outputs
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add QUANTDINGER_JASON_500_RESULT.json QUANTDINGER_JASON_500_REPORT.md
           if git diff --cached --quiet; then exit 0; fi
-          git commit -m 'test: refresh Jason US Swing 500 validation outputs [skip ci]'
+          git commit -m 'test: refresh Jason 500 real PIT validation outputs [skip ci]'
           git push

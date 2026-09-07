@@ -1,14 +1,87 @@
 {
-  "strategy": "Jason US Swing $500 Profit-First",
+  "strategy": "Jason US Swing 500",
+  "mode": "research_only",
   "capital_usd": 500,
-  "margin": false,
   "leverage": false,
+  "broker_connected": false,
   "live_orders": false,
-  "holding_days": {"min": 1, "preferred_max": 5, "hard_max": 10},
-  "features": ["liquidity", "spread", "catalyst", "market_relative_strength", "sector_relative_strength", "volume_price", "VWAP", "breakout_retest_second_confirmation", "ATR_profit_room", "portfolio_correlation_penalty", "major_event_anti_chase_cooldown"],
-  "required_validation": ["QuantDinger", "VectorBT", "LEAN_or_equivalent_event_driven", "Walk-Forward", "Monte Carlo"],
-  "hard_gates": {"test_expectancy_gt": 0, "test_profit_factor_gt": 1.2, "reward_risk_gte": 1.8, "minimum_test_trades": 30, "max_test_drawdown": 0.15},
-  "status": "REJECT_UNTIL_EMPIRICALLY_VALIDATED",
-  "validated": false,
-  "reason": "No trustworthy independent out-of-sample market-data run and no executable multi-engine CI run is available in the current GitHub connector session. Metrics are intentionally not fabricated. Strategy remains research-only and fails closed until all required engines, walk-forward and Monte Carlo gates pass."
+  "fixture_only": true,
+  "qualification": "REJECT",
+  "important": "CI uses deterministic synthetic OHLCV only; PASS cannot authorize live trading. Real point-in-time US equities + catalyst data is required before deployment.",
+  "engines": {
+    "quantdinger_event_driven": {
+      "trades": 6,
+      "expectancy": -0.038536078099176065,
+      "profit_factor": 0.13653435090055974,
+      "reward_risk": 0.6826717545027987,
+      "max_drawdown": -0.24123258343656706,
+      "total_return": -0.2134914435803763
+    },
+    "vectorbt": {
+      "trades": 6,
+      "expectancy": -0.041457564467832254,
+      "profit_factor": 0.11865740645571103,
+      "reward_risk": 0.5932870322785552,
+      "max_drawdown": -0.2527538253130128,
+      "total_return": -0.22772912830124237
+    },
+    "total_return_delta": 0.014237684720866062
+  },
+  "independent_test": {
+    "trades": 3,
+    "expectancy": -0.040829047454935354,
+    "profit_factor": 0.0,
+    "reward_risk": 0.0,
+    "max_drawdown": -0.0742544742077682,
+    "total_return": -0.11760532789362999
+  },
+  "walk_forward": [
+    {
+      "trades": 1,
+      "expectancy": -0.08220785912875961,
+      "profit_factor": 0.0,
+      "reward_risk": 0.0,
+      "max_drawdown": 0.0,
+      "total_return": -0.08220785912875961
+    },
+    {
+      "trades": 1,
+      "expectancy": -0.04682804558927045,
+      "profit_factor": 0.0,
+      "reward_risk": 0.0,
+      "max_drawdown": 0.0,
+      "total_return": -0.04682804558927045
+    },
+    {
+      "trades": 1,
+      "expectancy": -0.03268638171197458,
+      "profit_factor": 0.0,
+      "reward_risk": 0.0,
+      "max_drawdown": 0.0,
+      "total_return": -0.03268638171197458
+    },
+    {
+      "trades": 1,
+      "expectancy": -0.04297271506356104,
+      "profit_factor": 0.0,
+      "reward_risk": 0.0,
+      "max_drawdown": 0.0,
+      "total_return": -0.04297271506356104
+    }
+  ],
+  "monte_carlo": {
+    "paths": 2000,
+    "p05_total_return": -0.13050551726771298,
+    "p95_max_drawdown": -0.09146322532483009
+  },
+  "gates": {
+    "expectancy_gt_0": false,
+    "profit_factor_gt_1_2": false,
+    "reward_risk_gte_1_8": false,
+    "sample_sufficient": false,
+    "max_drawdown_ok": true,
+    "walk_forward_stable": false,
+    "monte_carlo_ok": false,
+    "cross_engine_consistent": true
+  }
 }

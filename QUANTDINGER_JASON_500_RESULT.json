@@ -1,0 +1,14 @@
+{
+  "strategy": "Jason US Swing $500 Profit-First",
+  "capital_usd": 500,
+  "margin": false,
+  "leverage": false,
+  "live_orders": false,
+  "holding_days": {"min": 1, "preferred_max": 5, "hard_max": 10},
+  "features": ["liquidity", "spread", "catalyst", "market_relative_strength", "sector_relative_strength", "volume_price", "VWAP", "breakout_retest_second_confirmation", "ATR_profit_room", "portfolio_correlation_penalty", "major_event_anti_chase_cooldown"],
+  "required_validation": ["QuantDinger", "VectorBT", "LEAN_or_equivalent_event_driven", "Walk-Forward", "Monte Carlo"],
+  "hard_gates": {"test_expectancy_gt": 0, "test_profit_factor_gt": 1.2, "reward_risk_gte": 1.8, "minimum_test_trades": 30, "max_test_drawdown": 0.15},
+  "status": "REJECT_UNTIL_EMPIRICALLY_VALIDATED",
+  "validated": false,
+  "reason": "No trustworthy independent out-of-sample market-data run and no executable multi-engine CI run is available in the current GitHub connector session. Metrics are intentionally not fabricated. Strategy remains research-only and fails closed until all required engines, walk-forward and Monte Carlo gates pass."
+}

@@ -1,10 +1,10 @@
-# Jason Options Engine v1 — $500 experiment
+# Jason Options Engine v2 — $1,000 experiment
 
-Research-only options layer for the existing Jason US Swing $500 workflow.
+Research-only options layer for the Jason US Swing $1,000 workflow. Legacy filenames are retained for compatibility.
 
 ## Design
 
-The implementation uses the mature defined-risk vertical-spread pattern used by institutional/open-source option engines such as QuantConnect LEAN, while keeping QuantDinger's existing fail-closed validation philosophy. Optopsy is a useful research reference for systematic spread studies; no third-party strategy source is vendored or copied here.
+The engine uses defined-risk vertical spreads and QuantDinger's fail-closed validation philosophy.
 
 Initial structures:
 
@@ -16,10 +16,12 @@ Initial structures:
 - no margin/financing/leverage
 - no broker connectivity or live-order path
 
-## $500 risk rules
+## $1,000 risk rules
 
-- total experiment capital: $500
-- maximum defined loss per spread position: $100
+- total experiment capital: $1,000
+- default maximum defined loss per spread position: $150
+- explicit A+ risk budget hard ceiling: $200
+- total portfolio open-risk ceiling: $350
 - minimum planned reward/risk: 1.8
 - conservative planned debit: long-leg ask minus short-leg bid
 - minimum open interest per leg: 200
@@ -28,11 +30,13 @@ Initial structures:
 - long-leg absolute delta: 0.45–0.70
 - short-leg absolute delta: 0.20–0.45
 
+The engine never automatically treats a setup as A+. Callers must explicitly request a higher risk budget, and the code still hard-caps it at $200 and enforces the $350 portfolio open-risk ceiling.
+
 ## Validation contract
 
 `backend_api_python/scripts/validate_jason_options_500.py` fails closed unless all three layers exist:
 
-1. Existing Jason US Swing $500 upstream result is PASS on real point-in-time data.
+1. Existing Jason US Swing upstream result is PASS on real point-in-time data and reports `capital_usd = 1000`.
 2. Real timestamped option-chain snapshots exist under `data/jason_options_pit/`.
 3. Independent option validation evidence exists at `data/jason_options_validation/multi_engine_results.json`.
 

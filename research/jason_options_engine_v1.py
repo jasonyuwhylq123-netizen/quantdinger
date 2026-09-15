@@ -1,6 +1,6 @@
-"""Jason Options Engine v1 — research-only defined-risk option spreads.
+"""Jason Options Engine v2 — research-only defined-risk option spreads.
 
-Selects bull-call or bear-put debit verticals for the $500 experiment.
+Selects bull-call or bear-put debit verticals for the $1,000 experiment.
 No broker connectivity, margin, naked short options, 0DTE, or live-order path.
 All market/option inputs must be point-in-time observations.
 """
@@ -14,8 +14,10 @@ from typing import Iterable
 
 @dataclass(frozen=True)
 class OptionsConfig:
-    capital_usd: float = 500.0
-    max_risk_per_trade_usd: float = 100.0
+    capital_usd: float = 1000.0
+    default_max_risk_per_trade_usd: float = 150.0
+    absolute_max_risk_per_trade_usd: float = 200.0
+    portfolio_open_risk_cap_usd: float = 350.0
     min_dte: int = 7
     max_dte: int = 30
     min_reward_risk: float = 1.8
@@ -48,10 +50,6 @@ def _dte(timestamp, expiration) -> int:
     return max(0, (_as_utc(expiration).date() - _as_utc(timestamp).date()).days)
 
 
-def _mid(row: dict) -> float:
-    return (float(row['bid']) + float(row['ask'])) / 2.0
-
-
 def _leg_ok(row: dict, cfg: OptionsConfig = CFG) -> tuple[bool, list[str]]:
     reasons: list[str] = []
     bid, ask = float(row['bid']), float(row['ask'])
@@ -79,7 +77,6 @@ def _delta_ok(row: dict, long_leg: bool, cfg: OptionsConfig = CFG) -> bool:
 
 
 def underlying_gate_ok(payload: dict | None) -> tuple[bool, str]:
-    """Fail closed unless the stock/multi-engine layer is formally validated."""
     if not payload:
         return False, 'UPSTREAM_MULTI_ENGINE_RESULT_MISSING'
     if payload.get('qualification') != 'PASS' or not payload.get('hard_gates_passed', True):
@@ -89,14 +86,28 @@ def underlying_gate_ok(payload: dict | None) -> tuple[bool, str]:
     return True, ''
 
 
-def build_debit_spreads(chain: Iterable[dict], direction: str, cfg: OptionsConfig = CFG) -> list[dict]:
-    """Return ranked executable spread plans; never returns an order object.
+def build_debit_spreads(
+    chain: Iterable[dict],
+    direction: str,
+    cfg: OptionsConfig = CFG,
+    current_open_risk_usd: float = 0.0,
+    risk_budget_usd: float | None = None,
+) -> list[dict]:
+    """Return ranked research plans, never order objects.
 
-    direction: 'bull' -> bull call debit spread, 'bear' -> bear put debit spread.
-    Entry debit is conservatively estimated as long ask minus short bid.
+    Default per-trade risk is $150. An explicit A+ risk budget may be supplied but
+    is hard-capped at $200. Portfolio open risk is capped at $350.
     """
     if direction not in {'bull', 'bear'}:
         raise ValueError('direction must be bull or bear')
+    if current_open_risk_usd < 0:
+        raise ValueError('current_open_risk_usd must be non-negative')
+    remaining_portfolio_risk = max(0.0, cfg.portfolio_open_risk_cap_usd - current_open_risk_usd)
+    requested = cfg.default_max_risk_per_trade_usd if risk_budget_usd is None else float(risk_budget_usd)
+    trade_risk_cap = min(requested, cfg.absolute_max_risk_per_trade_usd, remaining_portfolio_risk, cfg.capital_usd)
+    if trade_risk_cap <= 0:
+        return []
+
     option_type = 'call' if direction == 'bull' else 'put'
     rows = [dict(r) for r in chain if str(r.get('option_type', '')).lower() == option_type]
     valid = []
@@ -125,15 +136,17 @@ def build_debit_spreads(chain: Iterable[dict], direction: str, cfg: OptionsConfi
             debit = float(long_leg['ask']) - float(short_leg['bid'])
             if debit <= 0 or debit >= width:
                 continue
-            max_loss = debit * 100.0
-            max_profit = (width - debit) * 100.0
-            rr = max_profit / max_loss
-            if rr < cfg.min_reward_risk or max_loss > cfg.max_risk_per_trade_usd or max_loss > cfg.capital_usd:
+            unit_loss = debit * 100.0
+            unit_profit = (width - debit) * 100.0
+            rr = unit_profit / unit_loss
+            if rr < cfg.min_reward_risk or unit_loss > trade_risk_cap:
                 continue
-            qty = min(floor(cfg.capital_usd / max_loss), floor(cfg.max_risk_per_trade_usd / max_loss))
+            qty = floor(trade_risk_cap / unit_loss)
             if qty < 1:
                 continue
             quote_ts = max(_as_utc(long_leg['timestamp']), _as_utc(short_leg['timestamp']))
+            total_loss = unit_loss * qty
+            total_profit = unit_profit * qty
             score = rr + min(int(long_leg['open_interest']), int(short_leg['open_interest'])) / 10000.0
             out.append({
                 'symbol': long_leg['symbol'],
@@ -145,9 +158,11 @@ def build_debit_spreads(chain: Iterable[dict], direction: str, cfg: OptionsConfi
                 'short_strike': sk,
                 'planned_debit': round(debit, 4),
                 'quantity': int(qty),
-                'max_loss_usd': round(max_loss * qty, 2),
-                'max_profit_usd': round(max_profit * qty, 2),
+                'max_loss_usd': round(total_loss, 2),
+                'max_profit_usd': round(total_profit, 2),
                 'reward_risk': round(rr, 3),
+                'risk_budget_usd': round(trade_risk_cap, 2),
+                'portfolio_open_risk_after_usd': round(current_open_risk_usd + total_loss, 2),
                 'quote_timestamp': quote_ts.isoformat(),
                 'live_order': False,
                 '_score': score,

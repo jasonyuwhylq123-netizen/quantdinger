@@ -1,7 +1,7 @@
 {
-  "strategy": "Jason US Swing 500",
+  "strategy": "Jason US Swing 1000",
   "mode": "research_only",
-  "capital_usd": 500,
+  "capital_usd": 1000.0,
   "margin": false,
   "leverage": false,
   "broker_connected": false,

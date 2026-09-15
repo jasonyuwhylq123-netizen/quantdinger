@@ -1,4 +1,4 @@
-# QuantDinger — Jason US Swing $500 Real-Data Validation
+# QuantDinger — Jason US Swing $1,000 Real-Data Validation
 
 **Decision: REJECT / 今天不交易**
 

@@ -1,6 +1,7 @@
-"""Jason US Swing $500 short-horizon research strategy.
+"""Jason US Swing $1,000 short-horizon research strategy.
 
 Research/backtest only. No broker integration, leverage, margin or live orders.
+Legacy module/class names are preserved for compatibility.
 """
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class Jason500Config:
-    capital: float = 500.0
+    capital: float = 1000.0
     max_hold: int = 10
     preferred_hold: int = 5
     min_price: float = 5.0
@@ -40,7 +41,6 @@ def features(df: pd.DataFrame, benchmark: pd.Series, sector: pd.Series) -> pd.Da
     x['spread_ok'] = x.get('spread_bps', pd.Series(0.0, index=x.index)) <= Jason500Config.max_spread_bps
     x['catalyst'] = x.get('catalyst', pd.Series(False, index=x.index)).astype(bool)
     shock = x.get('major_news', pd.Series(False, index=x.index)).astype(bool) | x.get('earnings', pd.Series(False, index=x.index)).astype(bool)
-    # Ban the first wave and first pullback after major news/earnings: cooldown bars are ineligible.
     x['post_event_ban'] = shock.rolling(Jason500Config.news_cooldown_bars + 1, min_periods=1).max().astype(bool)
     return x
 

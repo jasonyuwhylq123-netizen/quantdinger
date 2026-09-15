@@ -1,4 +1,4 @@
-from jason_options_engine_v1 import build_debit_spreads, underlying_gate_ok
+from jason_options_engine_v1 import build_debit_spreads, underlying_gate_ok, CFG
 
 
 def _call(strike, bid, ask, delta, dte='2026-10-02T20:00:00Z'):
@@ -9,16 +9,35 @@ def _call(strike, bid, ask, delta, dte='2026-10-02T20:00:00Z'):
     }
 
 
-def test_bull_call_is_defined_risk_and_under_100_dollars():
+def test_v2_capital_and_risk_defaults():
+    assert CFG.capital_usd == 1000.0
+    assert CFG.default_max_risk_per_trade_usd == 150.0
+    assert CFG.absolute_max_risk_per_trade_usd == 200.0
+    assert CFG.portfolio_open_risk_cap_usd == 350.0
+
+
+def test_bull_call_is_defined_risk_and_research_only():
     chain = [_call(660, 2.40, 2.50, 0.60), _call(665, 1.60, 1.70, 0.35)]
     plans = build_debit_spreads(chain, 'bull')
     assert len(plans) == 1
     p = plans[0]
     assert p['strategy'] == 'BULL_CALL_DEBIT_SPREAD'
-    assert p['quantity'] == 1
-    assert p['max_loss_usd'] == 90.0
+    assert p['max_loss_usd'] <= CFG.default_max_risk_per_trade_usd
     assert p['reward_risk'] >= 1.8
     assert p['live_order'] is False
+
+
+def test_a_plus_budget_is_hard_capped_at_200():
+    chain = [_call(660, 2.40, 2.50, 0.60), _call(665, 1.60, 1.70, 0.35)]
+    plans = build_debit_spreads(chain, 'bull', risk_budget_usd=999)
+    assert plans
+    assert plans[0]['risk_budget_usd'] == 200.0
+    assert plans[0]['max_loss_usd'] <= 200.0
+
+
+def test_portfolio_open_risk_cap_blocks_new_trade():
+    chain = [_call(660, 2.40, 2.50, 0.60), _call(665, 1.60, 1.70, 0.35)]
+    assert build_debit_spreads(chain, 'bull', current_open_risk_usd=350) == []
 
 
 def test_zero_dte_is_rejected():

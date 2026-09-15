@@ -9,6 +9,7 @@ on:
       - 'backend_api_python/scripts/validate_jason_options_500.py'
       - 'data/jason_options_pit/**'
       - 'data/jason_options_validation/**'
+      - 'docs/trading/JASON_OPTIONS_ENGINE_V1.md'
       - '.github/workflows/jason-options-validation.yml'
   push:
     branches: [main]
@@ -18,6 +19,7 @@ on:
       - 'backend_api_python/scripts/validate_jason_options_500.py'
       - 'data/jason_options_pit/**'
       - 'data/jason_options_validation/**'
+      - 'docs/trading/JASON_OPTIONS_ENGINE_V1.md'
       - '.github/workflows/jason-options-validation.yml'
 
 permissions:

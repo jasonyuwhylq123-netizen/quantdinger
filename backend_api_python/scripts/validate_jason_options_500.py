@@ -1,6 +1,6 @@
-"""Fail-closed validation gate for Jason Options Engine v1.
+"""Fail-closed validation gate for Jason Options Engine v2.
 
-Requires: (1) PASS from the stock $500 real-PIT multi-engine layer,
+Requires: (1) PASS from the stock $1,000 real-PIT multi-engine layer,
 (2) real point-in-time option-chain snapshots, and (3) independent multi-engine
 validation evidence. Missing evidence always means REJECT / NO_TRADE.
 No broker connectivity or live-order path exists in this module.
@@ -17,10 +17,10 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'research'))
 from jason_options_engine_v1 import CFG, build_debit_spreads, underlying_gate_ok  # noqa: E402
 
-UPSTREAM = ROOT / 'QUANTDINGER_JASON_500_RESULT.json'
+UPSTREAM = ROOT / 'QUANTDINGER_JASON_500_RESULT.json'  # legacy filename retained
 DATA = ROOT / 'data' / 'jason_options_pit'
 EVIDENCE = ROOT / 'data' / 'jason_options_validation' / 'multi_engine_results.json'
-RESULT = ROOT / 'QUANTDINGER_JASON_OPTIONS_500_RESULT.json'
+RESULT = ROOT / 'QUANTDINGER_JASON_OPTIONS_500_RESULT.json'  # legacy filename retained
 REPORT = ROOT / 'QUANTDINGER_JASON_OPTIONS_500_REPORT.md'
 
 REQUIRED_CHAIN = [
@@ -32,7 +32,7 @@ REQUIRED_CHAIN = [
 def _write(payload: dict) -> dict:
     RESULT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
     REPORT.write_text(
-        '# QuantDinger — Jason Options Engine v1 ($500)\n\n'
+        '# QuantDinger — Jason Options Engine v2 ($1,000)\n\n'
         f"**{payload['qualification']} — {payload['today']}**\n\n"
         'Research only. No broker connectivity, margin, naked options, 0DTE, or live orders.\n\n'
         '```json\n' + json.dumps(payload, indent=2, ensure_ascii=False) + '\n```\n',
@@ -44,33 +44,29 @@ def _write(payload: dict) -> dict:
 
 def fail_closed(reason: str, detail: str = '') -> dict:
     return _write({
-        'strategy': 'Jason Options Engine v1',
-        'capital_usd': 500,
-        'mode': 'research_only',
-        'margin': False,
-        'leverage': False,
-        'naked_options': False,
-        'zero_dte': False,
-        'broker_connected': False,
-        'live_orders': False,
-        'synthetic_allowed': False,
-        'qualification': 'REJECT',
-        'hard_gates_passed': False,
-        'trade_decision': 'NO_TRADE',
-        'today': '暂无A级交易机会',
-        'multi_engine_status': '未完成多引擎验证',
-        'reason': reason,
-        'detail': detail,
+        'strategy': 'Jason Options Engine v2',
+        'capital_usd': CFG.capital_usd,
+        'default_max_risk_per_trade_usd': CFG.default_max_risk_per_trade_usd,
+        'absolute_max_risk_per_trade_usd': CFG.absolute_max_risk_per_trade_usd,
+        'portfolio_open_risk_cap_usd': CFG.portfolio_open_risk_cap_usd,
+        'mode': 'research_only', 'margin': False, 'leverage': False,
+        'naked_options': False, 'zero_dte': False, 'broker_connected': False,
+        'live_orders': False, 'synthetic_allowed': False,
+        'qualification': 'REJECT', 'hard_gates_passed': False,
+        'trade_decision': 'NO_TRADE', 'today': '暂无A级交易机会',
+        'multi_engine_status': '未完成多引擎验证', 'reason': reason, 'detail': detail,
     })
 
 
 def load_upstream() -> dict:
     if not UPSTREAM.exists():
-        raise RuntimeError('Missing QUANTDINGER_JASON_500_RESULT.json')
+        raise RuntimeError('Missing upstream Jason swing result')
     payload = json.loads(UPSTREAM.read_text(encoding='utf-8'))
     ok, why = underlying_gate_ok(payload)
     if not ok:
         raise RuntimeError(why)
+    if float(payload.get('capital_usd', 0)) != CFG.capital_usd:
+        raise RuntimeError('Upstream capital does not match $1,000 v2 configuration')
     return payload
 
 
@@ -102,11 +98,8 @@ def load_evidence() -> dict:
 
 
 def evidence_gates(e: dict) -> tuple[bool, dict]:
-    event = e.get('event_driven', {})
-    vectorized = e.get('vectorized', {})
-    lean = e.get('lean_or_equivalent', {})
-    wf = e.get('walk_forward', [])
-    mc = e.get('monte_carlo', {})
+    event = e.get('event_driven', {}); vectorized = e.get('vectorized', {})
+    lean = e.get('lean_or_equivalent', {}); wf = e.get('walk_forward', []); mc = e.get('monte_carlo', {})
     delta = abs(float(event.get('total_return', -999)) - float(vectorized.get('total_return', 999)))
     gates = {
         'sample_sufficient': int(event.get('trades', 0)) >= 30,
@@ -123,46 +116,35 @@ def evidence_gates(e: dict) -> tuple[bool, dict]:
 
 
 def latest_candidates(d: pd.DataFrame) -> list[dict]:
-    ts = d['timestamp'].max()
-    snap = d[d['timestamp'] == ts]
-    candidates: list[dict] = []
-    for symbol, g in snap.groupby('symbol', sort=False):
+    ts = d['timestamp'].max(); snap = d[d['timestamp'] == ts]; candidates: list[dict] = []
+    for _, g in snap.groupby('symbol', sort=False):
         direction = str(g['signal_direction'].iloc[0]).lower()
-        plans = build_debit_spreads(g.to_dict('records'), direction)
-        candidates.extend(plans)
+        candidates.extend(build_debit_spreads(g.to_dict('records'), direction))
     candidates.sort(key=lambda x: x['reward_risk'], reverse=True)
     return candidates[:3]
 
 
 def main() -> dict:
     try:
-        load_upstream()
-        chain = load_chain()
-        evidence = load_evidence()
+        load_upstream(); chain = load_chain(); evidence = load_evidence()
     except Exception as exc:
         return fail_closed('OPTIONS_REAL_VALIDATION_UNAVAILABLE_OR_INVALID', str(exc))
-
     ok, gates = evidence_gates(evidence)
     if not ok:
         return fail_closed('OPTIONS_MULTI_ENGINE_HARD_GATES_FAILED', json.dumps(gates, ensure_ascii=False))
-
     candidates = latest_candidates(chain)
+    base = {
+        'strategy': 'Jason Options Engine v2', 'capital_usd': CFG.capital_usd,
+        'default_max_risk_per_trade_usd': CFG.default_max_risk_per_trade_usd,
+        'absolute_max_risk_per_trade_usd': CFG.absolute_max_risk_per_trade_usd,
+        'portfolio_open_risk_cap_usd': CFG.portfolio_open_risk_cap_usd,
+        'mode': 'research_only', 'margin': False, 'leverage': False,
+        'broker_connected': False, 'live_orders': False, 'synthetic_allowed': False,
+        'qualification': 'PASS', 'hard_gates_passed': True, 'multi_engine_status': 'PASS', 'gates': gates,
+    }
     if not candidates:
-        return _write({
-            'strategy': 'Jason Options Engine v1', 'capital_usd': 500, 'mode': 'research_only',
-            'margin': False, 'leverage': False, 'broker_connected': False, 'live_orders': False,
-            'synthetic_allowed': False, 'qualification': 'PASS', 'hard_gates_passed': True,
-            'trade_decision': 'NO_TRADE', 'today': '暂无A级交易机会',
-            'multi_engine_status': 'PASS', 'gates': gates, 'candidates': [],
-        })
-
-    return _write({
-        'strategy': 'Jason Options Engine v1', 'capital_usd': 500, 'mode': 'research_only',
-        'margin': False, 'leverage': False, 'broker_connected': False, 'live_orders': False,
-        'synthetic_allowed': False, 'qualification': 'PASS', 'hard_gates_passed': True,
-        'trade_decision': 'RESEARCH_CANDIDATES_ONLY', 'today': '仅研究候选，不自动交易',
-        'multi_engine_status': 'PASS', 'gates': gates, 'candidates': candidates,
-    })
+        return _write({**base, 'trade_decision': 'NO_TRADE', 'today': '暂无A级交易机会', 'candidates': []})
+    return _write({**base, 'trade_decision': 'RESEARCH_CANDIDATES_ONLY', 'today': '仅研究候选，不自动交易', 'candidates': candidates})
 
 
 if __name__ == '__main__':
